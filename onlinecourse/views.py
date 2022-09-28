@@ -110,15 +110,24 @@ def enroll(request, course_id):
          # Collect the selected choices from exam form
          # Add each selected choice object to the submission object
          # Redirect to show_exam_result with the submission id
-def submit(request, course_id):
-    user = request.user
-    enrollment = Enrollment.objects.get(user=user, course=course_id)
-    submission = Submission.objects.create(enrollment)
-    submission["choices"] = extract_answers(request)
-    submission_id = submission.pk
+# def submit(request, course_id):
+#     user = request.user
+#     enrollment = Enrollment.objects.get(user=user, course=course_id)
+#     submission = Submission.objects.create(enrollment)
+#     submission["choices"] = extract_answers(request)
+#     submission_id = submission.pk
     
-    return HttpResponseRedirect(reverse('show_exam_result', kwargs={"course_id": course_id, "submission_id": submission_id}))    
-
+#     return HttpResponseRedirect(reverse('show_exam_result', kwargs={"course_id": course_id, "submission_id": submission_id}))    
+def submit(request, course_id):
+    course = get_object_or_404(Course, pk=course_id)
+    user = request.user
+    enrollment = Enrollment.objects.get(user=user, course=course)
+    submission = Submission.objects.create(enrollment=enrollment)
+    choice_ids = extract_answers(request)
+    for id in choice_ids:
+        choice = Choice.objects.get(pk=id)
+        submission.choices.add(choice)
+    return HttpResponseRedirect(reverse(viewname='onlinecourse:submission', kwargs={"course_id": course_id, "submission_id": submission.id}))
     
     
 
@@ -143,15 +152,17 @@ def extract_answers(request):
 def show_exam_result(request, course_id, submission_id):
    context ={}
    total = 0
-   course = course_id
+   course = Course.objects.get(pk=course_id)
    submission = Submission.objects.get(id=submission_id)
    choice_ids = submission.choices.all()
+
+   correct_ids = Choice.objects.filter(is_correct=True)
+
    for choice in choice_ids:
        if choice.is_correct == True:
            total = total + choice.question.grade
    context['course'] = course
    context['selected_ids'] = choice_ids
-   context['grade'] = total
+   context['grade'] = int((total * 100) / len(correct_ids))
+
    return render(request, 'onlinecourse/exam_result_bootstrap.html', context)
-
-
